@@ -1,0 +1,51 @@
+# Dependency directories (লাইব্রেরি ফাইলসমূহ)
+node_modules/
+jspm_packages/
+web_modules/
+
+# Build outputs (কম্পাইল হওয়া ফাইল ও ফোল্ডার)
+dist/
+build/
+out/
+lib/
+temp/
+
+# TypeScript Specific
+*.tsbuildinfo
+
+# Logs (ডিবাগিং এবং লগ ফাইল)
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment variables (সিক্রেট এবং কনফিগারেশন কী)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env.dev
+
+# Diagnostic reports (Diagnostics)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Operating System Files (OS এর নিজস্ব ফাইল)
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors (এডিটর কনফিগারেশন)
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing (টেস্টিং রিপোর্ট)
+coverage/
+.nyc_output/
