@@ -9,10 +9,14 @@ const router = Router();
 router.get('/my', protect, authorize('consumer'), async (req: AuthRequest, res: Response) => {
     try {
         const db = getDB();
-        // ক্লেইম করা মিটারগুলোর নম্বর বের করা
-        const meters = await db.collection('meters').find({ claimedBy: new ObjectId(req.user!.userId) }).toArray();
+        const meters = await db.collection('meters')
+            .find({ claimedBy: new ObjectId(req.user!.userId) })
+            .toArray();
         const meterNumbers = meters.map(m => m.meterNumber);
-        const bills = await db.collection('bills').find({ meterNumber: { $in: meterNumbers } }).sort({ createdAt: -1 }).toArray();
+        const bills = await db.collection('bills')
+            .find({ meterNumber: { $in: meterNumbers } })
+            .sort({ createdAt: -1 })
+            .toArray();
         res.json(bills);
     } catch (err) {
         res.status(500).json({ message: 'Server error' });
@@ -23,23 +27,38 @@ router.get('/my', protect, authorize('consumer'), async (req: AuthRequest, res: 
 router.post('/generate', protect, authorize('billing'), async (req: AuthRequest, res: Response) => {
     try {
         const db = getDB();
-        const { meterNumber, prevReading, currReading, consumerType } = req.body;
+        const { meterNumber, prevReading, currReading, consumerType, billingMonth } = req.body;
 
-        // সহজ রেট লজিক (পরে ডাটাবেজ থেকে বা কনফিগ থেকে নিতে পারো)
-        const rate = consumerType === 'commercial' ? 10 : 5;
+        // ✅ একই মিটার ও একই মাসে বিল আছে কিনা চেক
+        const existingBill = await db.collection('bills').findOne({
+            meterNumber,
+            billingMonth: billingMonth || undefined,   // যদি না আসে তবে skip
+        });
+
+        if (existingBill) {
+            return res.status(400).json({
+                message: `A bill already exists for meter ${meterNumber} in ${billingMonth || 'this month'}.`,
+            });
+        }
+
+        const rate = consumerType === 'commercial' ? 10 : consumerType === 'industrial' ? 15 : 5;
         const units = Number(currReading) - Number(prevReading);
+        if (units <= 0) {
+            return res.status(400).json({ message: 'Current reading must be greater than previous.' });
+        }
         const amount = units * rate;
 
         const bill = {
             meterNumber,
             consumerType,
-            prevReading,
-            currReading,
+            prevReading: Number(prevReading),
+            currReading: Number(currReading),
             units,
             amount,
             status: 'unpaid',
+            billingMonth,                     // ✅ নতুন ফিল্ড
             createdAt: new Date(),
-            dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days due
+            dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
         };
 
         const result = await db.collection('bills').insertOne(bill);
@@ -76,13 +95,11 @@ router.post('/receive-payment', protect, authorize('billing'), async (req: AuthR
             return;
         }
 
-        // বিল পেইড আপডেট
         await db.collection('bills').updateOne(
             { _id: new ObjectId(billId) },
             { $set: { status: 'paid', paidAt: new Date() } }
         );
 
-        // ট্রানজ্যাকশন রেকর্ড (offline)
         await db.collection('transactions').insertOne({
             billId: billId,
             amount: bill.amount,
