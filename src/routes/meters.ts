@@ -63,11 +63,11 @@ router.get(
     }
 );
 
-// ---------- 4. সব মিটার (Connection Wing, XEN, Admin) ----------
+// ---------- 4. সব মিটার (Connection Wing, XEN, Admin, Billing) ----------
 router.get(
     '/all',
     protect,
-    authorize('connection', 'xen', 'admin'),
+    authorize('connection', 'xen', 'admin', 'billing'),  // ✅ 'billing' যোগ করা হয়েছে
     async (_req: AuthRequest, res: Response) => {
         const db = getDB();
         const meters = await db
