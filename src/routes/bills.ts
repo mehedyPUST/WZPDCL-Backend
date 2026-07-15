@@ -1,3 +1,4 @@
+// src/routes/bills.ts
 import { Router, Response } from 'express';
 import { getDB } from '../db';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
@@ -29,16 +30,17 @@ router.post('/generate', protect, authorize('billing'), async (req: AuthRequest,
         const db = getDB();
         const { meterNumber, prevReading, currReading, consumerType, billingMonth } = req.body;
 
-        // ✅ একই মিটার ও একই মাসে বিল আছে কিনা চেক
-        const existingBill = await db.collection('bills').findOne({
-            meterNumber,
-            billingMonth: billingMonth || undefined,   // যদি না আসে তবে skip
-        });
-
-        if (existingBill) {
-            return res.status(400).json({
-                message: `A bill already exists for meter ${meterNumber} in ${billingMonth || 'this month'}.`,
+        // একই মিটার ও একই মাসে বিল আছে কিনা চেক
+        if (billingMonth) {
+            const existingBill = await db.collection('bills').findOne({
+                meterNumber,
+                billingMonth,
             });
+            if (existingBill) {
+                return res.status(400).json({
+                    message: `A bill already exists for meter ${meterNumber} in ${billingMonth}.`,
+                });
+            }
         }
 
         const rate = consumerType === 'commercial' ? 10 : consumerType === 'industrial' ? 15 : 5;
@@ -56,7 +58,7 @@ router.post('/generate', protect, authorize('billing'), async (req: AuthRequest,
             units,
             amount,
             status: 'unpaid',
-            billingMonth,                     // ✅ নতুন ফিল্ড
+            billingMonth: billingMonth || new Date().toISOString().slice(0, 7),
             createdAt: new Date(),
             dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
         };
@@ -110,6 +112,36 @@ router.post('/receive-payment', protect, authorize('billing'), async (req: AuthR
         });
 
         res.json({ message: 'Bill marked as paid' });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// 5. Edit Bill (Billing Wing, Admin)
+router.put('/:id', protect, authorize('billing', 'admin'), async (req: AuthRequest, res: Response) => {
+    try {
+        const db = getDB();
+        const { id } = req.params;
+        const { prevReading, currReading, consumerType, units, amount } = req.body;
+
+        const result = await db.collection('bills').updateOne(
+            { _id: new ObjectId(id) },
+            {
+                $set: {
+                    prevReading: Number(prevReading),
+                    currReading: Number(currReading),
+                    consumerType,
+                    units: Number(units),
+                    amount: Number(amount),
+                    updatedAt: new Date(),
+                },
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: 'Bill not found' });
+        }
+        res.json({ message: 'Bill updated' });
     } catch (err) {
         res.status(500).json({ message: 'Server error' });
     }
