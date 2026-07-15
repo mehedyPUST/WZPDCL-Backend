@@ -103,17 +103,23 @@ router.put(
             return;
         }
 
-        // নতুন মিটার নম্বর ইতিমধ্যে আছে কিনা
+        // ✅ নতুন মিটার নম্বর ইতিমধ্যে আছে কিনা — Duplicate check
         const existingNew = await db.collection('meters').findOne({ meterNumber: newMeterNumber });
         if (existingNew) {
-            res.status(400).json({ message: 'New meter number already exists.' });
+            res.status(400).json({ message: 'New meter number already exists in the system.' });
             return;
         }
 
         // পুরনো মিটার inactive করো
         await db.collection('meters').updateOne(
             { meterNumber: oldMeterNumber },
-            { $set: { status: 'inactive', replacedAt: new Date() } }
+            {
+                $set: {
+                    status: 'inactive',
+                    replacedAt: new Date(),
+                    replacedBy: newMeterNumber,
+                },
+            }
         );
 
         // নতুন মিটার তৈরি করো
@@ -124,6 +130,7 @@ router.put(
             addedByConnectionWing: true,
             replacedFrom: oldMeterNumber,
             status: 'active',
+            lastReading: oldMeter.lastReading || 0,
             createdAt: new Date(),
         };
 
@@ -139,6 +146,31 @@ router.put(
             message: 'Meter replaced successfully',
             newMeterId: result.insertedId,
         });
+    }
+);
+
+// ---------- 6. ইনঅ্যাক্টিভ মিটার ডিলিট (Connection Wing) ----------
+router.delete(
+    '/:id',
+    protect,
+    authorize('connection'),
+    async (req: AuthRequest, res: Response) => {
+        const db = getDB();
+        const { id } = req.params;
+
+        // শুধু inactive মিটার ডিলিট করা যাবে
+        const meter = await db.collection('meters').findOne({
+            _id: new ObjectId(id),
+            status: 'inactive',
+        });
+
+        if (!meter) {
+            res.status(404).json({ message: 'Inactive meter not found or already removed.' });
+            return;
+        }
+
+        await db.collection('meters').deleteOne({ _id: new ObjectId(id) });
+        res.json({ message: 'Inactive meter removed permanently.' });
     }
 );
 
