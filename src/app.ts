@@ -37,4 +37,14 @@ app.use('/api/consumers', consumerRoutes);
 // Health check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
+// Root welcome route
+app.get('/', (_req, res) => {
+    res.json({
+        message: 'Welcome to the WZPDCL Backend API',
+        status: 'online',
+        healthCheck: '/api/health',
+        documentation: 'https://github.com/mehedyPUST/WZPDCL-Backend'
+    });
+});
+
 export default app;
