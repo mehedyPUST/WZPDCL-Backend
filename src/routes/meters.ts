@@ -79,7 +79,32 @@ router.get(
     }
 );
 
-// ---------- 5. মিটার রিপ্লেস (Connection Wing) ----------
+// ---------- 5. মিটার Availability চেক (Connection Wing) ----------
+router.get(
+    '/check',
+    protect,
+    authorize('connection'),
+    async (req: AuthRequest, res: Response) => {
+        const db = getDB();
+        const meterNumber = req.query.number as string;
+
+        if (!meterNumber) {
+            res.status(400).json({ message: 'Meter number query parameter is required.' });
+            return;
+        }
+
+        const existing = await db.collection('meters').findOne({ meterNumber });
+
+        res.json({
+            exists: !!existing,
+            message: existing
+                ? 'Meter number already exists in the system.'
+                : 'Meter number is available.',
+        });
+    }
+);
+
+// ---------- 6. মিটার রিপ্লেস (Connection Wing) ----------
 router.put(
     '/replace',
     protect,
@@ -103,7 +128,7 @@ router.put(
             return;
         }
 
-        // ✅ নতুন মিটার নম্বর ইতিমধ্যে আছে কিনা — Duplicate check
+        // নতুন মিটার নম্বর ইতিমধ্যে আছে কিনা — Duplicate check
         const existingNew = await db.collection('meters').findOne({ meterNumber: newMeterNumber });
         if (existingNew) {
             res.status(400).json({ message: 'New meter number already exists in the system.' });
@@ -149,7 +174,7 @@ router.put(
     }
 );
 
-// ---------- 6. ইনঅ্যাক্টিভ মিটার ডিলিট (Connection Wing) ----------
+// ---------- 7. ইনঅ্যাক্টিভ মিটার ডিলিট (Connection Wing) ----------
 router.delete(
     '/:id',
     protect,
