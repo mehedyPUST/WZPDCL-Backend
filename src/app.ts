@@ -12,7 +12,7 @@ import reviewRoutes from './routes/reviews';
 import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
 import consumerRoutes from './routes/consumers';
-
+import userRoutes from './routes/users';
 const app = express();
 
 // Database connection middleware for serverless/Vercel support
@@ -47,7 +47,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/consumers', consumerRoutes);
-
+app.use('/api/users', userRoutes);
 // Health check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
