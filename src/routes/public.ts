@@ -1,5 +1,3 @@
-
-
 import { Router, Request, Response } from 'express';
 import { getDB } from '../db';
 import Stripe from 'stripe';
@@ -54,7 +52,41 @@ router.post('/create-payment-intent', async (req: Request, res: Response) => {
     res.json({ clientSecret: paymentIntent.client_secret });
 });
 
-// Stripe Webhook (public)
+// ✅ Public Bill Pay – Stripe Checkout Session
+router.post('/create-checkout-session', async (req: Request, res: Response) => {
+    const stripe = getStripe();
+    const db = getDB();
+    const { billId } = req.body;
+    const bill = await db.collection('bills').findOne({ _id: new ObjectId(billId) });
+    if (!bill || bill.status === 'paid') {
+        return res.status(400).json({ message: 'Bill not found or already paid' });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+            price_data: {
+                currency: 'bdt',
+                product_data: {
+                    name: `Electricity Bill - Meter ${bill.meterNumber}`,
+                },
+                unit_amount: Math.round(bill.amount * 100),
+            },
+            quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: `${process.env.FRONTEND_URL}/payment-success?type=bill&id=${billId}`,
+        cancel_url: `${process.env.FRONTEND_URL}/pay-bill?cancelled=true`,
+        metadata: {
+            billId: billId.toString(),
+            type: 'public_bill_payment',
+        },
+    });
+
+    res.json({ url: session.url });
+});
+
+// Stripe Webhook (public) – updated
 router.post('/webhook', async (req: Request, res: Response) => {
     const stripe = getStripe();
     const sig = req.headers['stripe-signature']!;
@@ -72,7 +104,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
     const db = getDB();
 
-    // বিল পেমেন্ট সফল (Payment Intent)
+    // Bill payment succeeded (Payment Intent)
     if (event.type === 'payment_intent.succeeded') {
         const paymentIntent = event.data.object;
         const metadata = paymentIntent.metadata;
@@ -91,12 +123,29 @@ router.post('/webhook', async (req: Request, res: Response) => {
         }
     }
 
-    // কানেকশন ফি পেমেন্ট সফল (Checkout Session)
+    // Checkout Session completed (public bill + connection fee)
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         const metadata = session.metadata;
         if (metadata) {
-            const { applicationId, userId, type } = metadata;
+            const { billId, type, applicationId, userId } = metadata;
+
+            // Public bill payment
+            if (type === 'public_bill_payment' && billId) {
+                await db.collection('bills').updateOne(
+                    { _id: new ObjectId(billId) },
+                    { $set: { status: 'paid', paidAt: new Date() } }
+                );
+                await db.collection('transactions').insertOne({
+                    billId,
+                    amount: session.amount_total ? session.amount_total / 100 : 0,
+                    stripePaymentId: session.id,
+                    type: 'bill',
+                    createdAt: new Date(),
+                });
+            }
+
+            // Connection fee payment
             if (type === 'connection_fee' && applicationId) {
                 await db.collection('connections').updateOne(
                     { _id: new ObjectId(applicationId) },
