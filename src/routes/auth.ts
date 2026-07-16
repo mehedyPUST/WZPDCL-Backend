@@ -1,3 +1,4 @@
+// src/routes/auth.ts – only collection name changed
 import { Router, Request, Response } from 'express';
 import { getDB } from '../db';
 import { generateToken, hashPassword, comparePassword } from '../auth';
@@ -11,7 +12,7 @@ router.post('/register', async (req: Request, res: Response) => {
     try {
         const { name, email, password, image } = req.body;
         const db = getDB();
-        const users = db.collection('users');
+        const users = db.collection('user');   // ✅
 
         const existing = await users.findOne({ email });
         if (existing) {
@@ -44,7 +45,7 @@ router.post('/login', async (req: Request, res: Response) => {
     try {
         const { email, password } = req.body;
         const db = getDB();
-        const users = db.collection('users');
+        const users = db.collection('user');   // ✅
         const user = await users.findOne({ email });
         if (!user) {
             res.status(400).json({ message: 'Invalid credentials' });
@@ -78,7 +79,7 @@ router.post('/google', async (req: Request, res: Response) => {
         }
 
         const db = getDB();
-        const users = db.collection('users');
+        const users = db.collection('user');   // ✅
 
         // 1. googleId দিয়ে খুঁজি
         let user = await users.findOne({ googleId });
@@ -142,7 +143,7 @@ router.post('/google', async (req: Request, res: Response) => {
 router.get('/me', protect, async (req: AuthRequest, res: Response) => {
     try {
         const db = getDB();
-        const user = await db.collection('users').findOne(
+        const user = await db.collection('user').findOne(   // ✅
             { _id: new ObjectId(req.user!.userId) },
             { projection: { password: 0 } }
         );
@@ -161,7 +162,7 @@ router.put('/change-password', protect, async (req: AuthRequest, res: Response) 
     try {
         const { currentPassword, newPassword } = req.body;
         const db = getDB();
-        const user = await db.collection('users').findOne({ _id: new ObjectId(req.user!.userId) });
+        const user = await db.collection('user').findOne({ _id: new ObjectId(req.user!.userId) });   // ✅
         if (!user) {
             res.status(404).json({ message: 'User not found' });
             return;
@@ -172,7 +173,7 @@ router.put('/change-password', protect, async (req: AuthRequest, res: Response) 
             return;
         }
         const hashed = await hashPassword(newPassword);
-        await db.collection('users').updateOne(
+        await db.collection('user').updateOne(   // ✅
             { _id: new ObjectId(req.user!.userId) },
             { $set: { password: hashed } }
         );

@@ -1,3 +1,4 @@
+// src/routes/consumers.ts – only collection name changed
 import { Router, Response } from 'express';
 import { getDB } from '../db';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
@@ -23,15 +24,13 @@ router.post('/add', protect, authorize('connection'), async (req: AuthRequest, r
         consumerInfo: { name, address, phone },
         createdAt: new Date()
     });
-    // users collection-এ না ঢুকিয়ে consumer info meter-এর সাথেই থাকবে
     res.status(201).json({ message: 'Consumer added successfully' });
 });
 
 // সবার কনজিউমার (meter collection থেকে সব, reg+unreg)
-router.get('/all', protect, authorize('xen', 'connection', 'admin'), async (_req: AuthRequest, res: Response) => {
+router.get('/all', protect, authorize('xen', 'connection', 'admin', 'billing'), async (_req: AuthRequest, res: Response) => {
     const db = getDB();
     const meters = await db.collection('meters').find().toArray();
-    // reg consumers info users collection থেকে join করতে পারো, কিন্তু এখন simple output
     res.json(meters);
 });
 

@@ -1,3 +1,4 @@
+// src/routes/admin.ts – only collection name changed
 import { Router, Response } from 'express';
 import { getDB } from '../db';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
@@ -22,7 +23,7 @@ const DEFAULT_SETTINGS = {
 
 router.get('/users', protect, authorize('admin'), async (_req: AuthRequest, res: Response) => {
     const db = getDB();
-    const users = await db.collection('users').find({}, { projection: { password: 0 } }).toArray();
+    const users = await db.collection('user').find({}, { projection: { password: 0 } }).toArray();   // ✅
     res.json(users);
 });
 
@@ -35,7 +36,7 @@ router.put('/change-role/:userId', protect, authorize('admin'), async (req: Auth
         return res.status(400).json({ message: 'You cannot change your own role.' });
     }
 
-    await db.collection('users').updateOne(
+    await db.collection('user').updateOne(   // ✅
         { _id: new ObjectId(userId) },
         { $set: { role } }
     );
@@ -50,11 +51,11 @@ router.delete('/users/:userId', protect, authorize('admin'), async (req: AuthReq
         return res.status(400).json({ message: 'You cannot delete your own account.' });
     }
 
-    await db.collection('users').deleteOne({ _id: new ObjectId(userId) });
+    await db.collection('user').deleteOne({ _id: new ObjectId(userId) });   // ✅
     res.json({ message: 'User deleted' });
 });
 
-// ---------- সিস্টেম সেটিংস ----------
+// ---------- সিস্টেম সেটিংস (কোনো change নেই) ----------
 
 router.get('/settings', protect, authorize('admin'), async (_req: AuthRequest, res: Response) => {
     const db = getDB();

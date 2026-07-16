@@ -1,4 +1,4 @@
-// src/routes/bills.ts
+// src/routes/bills.ts – no changes needed (no user/users collection)
 import { Router, Response } from 'express';
 import { getDB } from '../db';
 import { protect, authorize, AuthRequest } from '../middleware/auth';

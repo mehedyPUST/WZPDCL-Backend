@@ -1,26 +1,4 @@
-// // src/db.ts (সংশোধিত)
-// import { MongoClient, Db } from 'mongodb';
-// import dotenv from 'dotenv';
-// dotenv.config();
 
-// let client: MongoClient;
-// let db: Db;
-
-// export async function connectDB(): Promise<Db> {
-//     if (db) return db;
-//     client = new MongoClient(process.env.MONGODB_URI!);
-//     await client.connect();
-//     db = client.db(process.env.DB_NAME || 'WZPDCL-DB'); // এখানে DB_NAME
-//     console.log('MongoDB connected');
-//     return db;
-// }
-
-// export function getDB(): Db {
-//     if (!db) throw new Error('Database not initialized.');
-//     return db;
-// }
-
-// src/db.ts (সংশোধিত)
 import { MongoClient, Db } from 'mongodb';
 import dotenv from 'dotenv';
 dotenv.config();
