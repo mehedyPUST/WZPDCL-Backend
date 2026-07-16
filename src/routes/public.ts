@@ -1,3 +1,4 @@
+// src/routes/public.ts
 import { Router, Request, Response } from 'express';
 import { getDB } from '../db';
 import Stripe from 'stripe';
@@ -86,7 +87,33 @@ router.post('/create-checkout-session', async (req: Request, res: Response) => {
     res.json({ url: session.url });
 });
 
-// Stripe Webhook (public) – updated
+// ✅ Manual confirm bill payment (no webhook needed)
+router.post('/confirm-bill-payment', async (req: Request, res: Response) => {
+    const { billId } = req.body;
+    if (!billId) return res.status(400).json({ message: 'billId required' });
+
+    const db = getDB();
+    const bill = await db.collection('bills').findOne({ _id: new ObjectId(billId) });
+    if (!bill) return res.status(404).json({ message: 'Bill not found' });
+    if (bill.status === 'paid') return res.status(400).json({ message: 'Already paid' });
+
+    await db.collection('bills').updateOne(
+        { _id: new ObjectId(billId) },
+        { $set: { status: 'paid', paidAt: new Date() } }
+    );
+
+    await db.collection('transactions').insertOne({
+        billId,
+        amount: bill.amount,
+        type: 'bill',
+        method: 'online',
+        createdAt: new Date(),
+    });
+
+    res.json({ message: 'Bill marked as paid' });
+});
+
+// Stripe Webhook (public)
 router.post('/webhook', async (req: Request, res: Response) => {
     const stripe = getStripe();
     const sig = req.headers['stripe-signature']!;
@@ -104,7 +131,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
     const db = getDB();
 
-    // Bill payment succeeded (Payment Intent)
+    // বিল পেমেন্ট সফল (Payment Intent)
     if (event.type === 'payment_intent.succeeded') {
         const paymentIntent = event.data.object;
         const metadata = paymentIntent.metadata;
@@ -123,29 +150,12 @@ router.post('/webhook', async (req: Request, res: Response) => {
         }
     }
 
-    // Checkout Session completed (public bill + connection fee)
+    // কানেকশন ফি পেমেন্ট সফল (Checkout Session)
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         const metadata = session.metadata;
         if (metadata) {
-            const { billId, type, applicationId, userId } = metadata;
-
-            // Public bill payment
-            if (type === 'public_bill_payment' && billId) {
-                await db.collection('bills').updateOne(
-                    { _id: new ObjectId(billId) },
-                    { $set: { status: 'paid', paidAt: new Date() } }
-                );
-                await db.collection('transactions').insertOne({
-                    billId,
-                    amount: session.amount_total ? session.amount_total / 100 : 0,
-                    stripePaymentId: session.id,
-                    type: 'bill',
-                    createdAt: new Date(),
-                });
-            }
-
-            // Connection fee payment
+            const { applicationId, userId, type } = metadata;
             if (type === 'connection_fee' && applicationId) {
                 await db.collection('connections').updateOne(
                     { _id: new ObjectId(applicationId) },
@@ -175,32 +185,6 @@ router.post('/webhook', async (req: Request, res: Response) => {
     res.json({ received: true });
 });
 
-
-// POST /api/public/confirm-bill-payment
-router.post('/confirm-bill-payment', async (req: Request, res: Response) => {
-    const { billId } = req.body;
-    if (!billId) return res.status(400).json({ message: 'billId required' });
-
-    const db = getDB();
-    const bill = await db.collection('bills').findOne({ _id: new ObjectId(billId) });
-    if (!bill) return res.status(404).json({ message: 'Bill not found' });
-    if (bill.status === 'paid') return res.status(400).json({ message: 'Already paid' });
-
-    await db.collection('bills').updateOne(
-        { _id: new ObjectId(billId) },
-        { $set: { status: 'paid', paidAt: new Date() } }
-    );
-
-    await db.collection('transactions').insertOne({
-        billId,
-        amount: bill.amount,
-        type: 'bill',
-        method: 'online',
-        createdAt: new Date(),
-    });
-
-    res.json({ message: 'Bill marked as paid' });
-});
 // পাবলিক রিভিউ লিস্ট
 router.get('/reviews', async (_req: Request, res: Response) => {
     const db = getDB();
