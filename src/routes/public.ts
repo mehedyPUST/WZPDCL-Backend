@@ -175,6 +175,32 @@ router.post('/webhook', async (req: Request, res: Response) => {
     res.json({ received: true });
 });
 
+
+// POST /api/public/confirm-bill-payment
+router.post('/confirm-bill-payment', async (req: Request, res: Response) => {
+    const { billId } = req.body;
+    if (!billId) return res.status(400).json({ message: 'billId required' });
+
+    const db = getDB();
+    const bill = await db.collection('bills').findOne({ _id: new ObjectId(billId) });
+    if (!bill) return res.status(404).json({ message: 'Bill not found' });
+    if (bill.status === 'paid') return res.status(400).json({ message: 'Already paid' });
+
+    await db.collection('bills').updateOne(
+        { _id: new ObjectId(billId) },
+        { $set: { status: 'paid', paidAt: new Date() } }
+    );
+
+    await db.collection('transactions').insertOne({
+        billId,
+        amount: bill.amount,
+        type: 'bill',
+        method: 'online',
+        createdAt: new Date(),
+    });
+
+    res.json({ message: 'Bill marked as paid' });
+});
 // পাবলিক রিভিউ লিস্ট
 router.get('/reviews', async (_req: Request, res: Response) => {
     const db = getDB();
